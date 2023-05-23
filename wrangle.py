@@ -185,24 +185,42 @@ def handle_missing_values(df, prop_required_columns=0.5, prop_required_rows=0.75
     
     return df
 
+def wrangle_zillow(df):
+    '''takes in df, cleans df, uses function to handle_missing_values'''
+    
+    # Drop 'Unnamed: 0' column
+    df.drop('Unnamed: 0', axis=1, inplace=True)
+    
+    # Define the values to drop
+    values_to_drop = ['Planned Unit Development', 'Triplex (3 Units, Any Combination)', 
+                      'Quadruplex (4 Units, Any Combination)', 'Cluster Home', 
+                      'Commercial/Office/Residential Mixed Used', 'Cooperative']
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # Drop the rows with the specified values in the 'propertylandusedesc' column
+    df = df[~df['propertylandusedesc'].isin(values_to_drop)]
+    
+    # see function above
+    df = wra.handle_missing_values(df, prop_required_columns=0.5, prop_required_rows=0.75)
+    
+    # Drop duplicates in the 'parcelid' column
+    df.drop_duplicates(subset='parcelid', inplace=True)
+    
+    # Replace all 'nan' values in the 'heatingorsystemdesc' column with 'Yes'
+    df ['heatingorsystemdesc'] = df['heatingorsystemdesc'].fillna('Yes')
+    
+    # Replace all 'nan' values in the 'heatingorsystemtypeid' column with '24'
+    df['heatingorsystemtypeid'] = df['heatingorsystemtypeid'].fillna(24)
+    
+    # Drop the specified columns from the dataframe
+    df = df.drop(['buildingqualitytypeid', 'propertyzoningdesc', 'unitcnt'], axis=1)
+    
+    # Replace all NaN values with 0 in the 'lotsizesquarefeet' column where the 'propertylandusedesc' column has 'Condominium'
+    condo_idx = df[df['propertylandusedesc'] == 'Condominium'].index
+    df.loc[condo_idx, 'lotsizesquarefeet'] = df.loc[condo_idx, 'lotsizesquarefeet'].fillna(0)
+    
+    df = df.dropna()
+   
+    return df
 
 
 def data_prep(df, col_to_remove=[], prop_required_columns=0.5, prop_required_rows=0.75):
@@ -220,56 +238,6 @@ def data_prep(df, col_to_remove=[], prop_required_columns=0.5, prop_required_row
     df = remove_columns(df, col_to_remove)
     df = handle_missing_values(df, prop_required_columns, prop_required_rows)
     return df
-
-
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-def wrangle_zillow(df):
-    
-    df.drop('Unnamed: 0', axis=1, inplace=True)
-    
-    df.rename(columns={'calculatedfinishedsquarefeet': 'squarefeet', 'taxvaluedollarcnt': 'taxvalue',
-                       'fips': 'county'}, inplace=True)
-    
-    df.dropna(inplace=True)
-    
-    df[['bedroomcnt', 'squarefeet', 'taxvalue', 'yearbuilt', 'county']] = df[['bedroomcnt', 'squarefeet',
-                                                                              'taxvalue', 'yearbuilt',
-                                                                              'county']].astype(int)
-
-    df.county = df.county.map({6037:'LA',6059:'Orange',6111:'Ventura'})
-    
-    df = df [df.squarefeet < 25_000]
-    
-    df = df [df.taxvalue < df.taxvalue.quantile(.95)].copy()
-    
-    df = df[df.taxvalue > df.taxvalue.quantile(.001)].copy()
-    
-    return df
-
 
 def split_data(df):
     '''
@@ -325,6 +293,40 @@ def scaled_data_to_dataframe(X_train, X_validate, X_test):
     return X_train_scaled, X_validate_scaled, X_test_scaled
 
 
+def new_mall_data(SQL_query):
+    """
+    This function will:
+    - take in a SQL_query
+    - create a db_url to mySQL
+    - return a df of the given query from the mall_customers db
+    """
+    url = env.get_db_url('mall_customers')
+    
+    return pd.read_sql(SQL_query, url)
+
+
+
+
+def get_mall_data(SQL_query, filename = 'mall_customers.csv'):
+    """
+    This function will:
+    - Check local directory for csv file
+        - return if exists
+    - if csv doesn't exist:
+        - creates df of sql query
+        - writes df to csv: defaulted to mall_customers.csv
+    - outputs mall_customers df
+    """
+    
+    if os.path.exists(filename): 
+        df = pd.read_csv(filename)
+        return df
+    else:
+        df = new_mall_data(SQL_query)
+
+        df.to_csv(filename)
+        return df
+    
 
 
 
